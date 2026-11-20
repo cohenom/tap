@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Link Page Maker</title>
+<style>
+  :root{--bg:#f6f3ee;--card:#fff;--text:#1d1b19;--muted:#6b655e;--accent:#b08d57;--border:#e6e0d7}
+  @media (prefers-color-scheme:dark){:root{--bg:#141312;--card:#1f1d1b;--text:#f2eee8;--muted:#a39b91;--accent:#d4b07a;--border:#2f2c29}}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;display:flex;justify-content:center;padding:48px 16px}
+  main{width:100%;max-width:520px}
+  .steps{display:flex;gap:6px;margin-bottom:28px}
+  .steps i{flex:1;height:5px;border-radius:3px;background:var(--border)}
+  .steps i.on{background:var(--accent)}
+  h1{font-size:30px;margin:0 0 6px}
+  p.hint{color:var(--muted);margin:0 0 22px;font-size:17px}
+  input{width:100%;font:inherit;font-size:20px;padding:16px 18px;border-radius:14px;border:1px solid var(--border);background:var(--card);color:var(--text);outline:none}
+  input:focus{border-color:var(--accent)}
+  .pre{position:relative}.pre input{padding-left:40px}.pre b{position:absolute;left:18px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:20px;font-weight:500}
+  .row{display:flex;gap:12px;margin-top:22px}
+  button{font:inherit;font-size:18px;font-weight:600;padding:15px 22px;border-radius:14px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer}
+  button.go{background:var(--accent);border-color:var(--accent);color:#fff;flex:1}
+  button:disabled{opacity:.45;cursor:default}
+  .list{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+  .opt{display:flex;align-items:center;gap:14px;text-align:left;padding:14px 16px;border-radius:14px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text);text-decoration:none}
+  .opt:hover,.opt.sel{border-color:var(--accent)}
+  .opt.sel{box-shadow:0 0 0 2px var(--accent) inset}
+  .opt img,.opt .av{width:48px;height:48px;border-radius:50%;flex:none;background:var(--border);object-fit:cover;display:grid;place-items:center;font-weight:700;color:var(--muted)}
+  .opt div{flex:1;min-width:0}.opt strong{display:block;font-size:18px}.opt small{color:var(--muted);font-size:14px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .muted{color:var(--muted);font-size:15px}
+  .out{word-break:break-all;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;font-size:16px;margin:8px 0 0}
+  details{margin-top:28px;color:var(--muted)}details input{font-size:15px;padding:10px 12px;margin-top:8px}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <div class="steps" id="bar"></div>
+  <section id="view"></section>
+</main>
+<script>
+const st={n:'',s:'',p:'',q:'',w:'',i:'',f:'',t:'',slug:''};
+let step=0;
+const K=()=>{try{return localStorage.getItem('gkey')||''}catch(e){return''}};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clean=v=>v.trim().replace(/^https?:\/\/(www\.)?[^/]+\/(@)?/i,'').replace(/^@/,'').replace(/[/?#].*$/,'');
+const steps=[
+ {k:'n',title:'What is the name?',hint:'Shown big at the top of the page.',ph:'',req:1},
+ {k:'place',title:'Which place?',hint:'Search the business, then pick the right one. This becomes the Google review button.'},
+ {k:'w',title:'Your website',hint:'Paste the URL. Leave blank if none.',ph:'https://example.co.il'},
+ {k:'i',title:'Instagram',hint:'Type the @ and check the account below. Leave blank if none.',ph:'username',at:1,net:'instagram'},
+ {k:'f',title:'Facebook',hint:'Page @ or name from the URL. Leave blank if none.',ph:'pagename',at:1,net:'facebook'},
+ {k:'t',title:'TikTok',hint:'Type the @. Leave blank if none.',ph:'username',at:1,net:'tiktok'},
+ {k:'done'}];
+const prof={instagram:h=>'https://www.instagram.com/'+h+'/',facebook:h=>'https://www.facebook.com/'+h,tiktok:h=>'https://www.tiktok.com/@'+h};
+function render(){
+ document.getElementById('bar').innerHTML=steps.map((_,i)=>`<i class="${i<=step?'on':''}"></i>`).join('');
+ const s=steps[step],v=document.getElementById('view');
+ if(s.k==='done')return done(v);
+ if(s.k==='place')return place(v);
+ v.innerHTML=`<h1>${s.title}</h1><p class="hint">${s.hint}</p>
+  <div class="${s.at?'pre':''}">${s.at?'<b>@</b>':''}<input id="in" placeholder="${s.ph}" value="${esc(st[s.k])}" autocomplete="off"></div>
+  <div class="list" id="pv"></div>${nav(s.req&&!st[s.k])}`;
+ const inp=document.getElementById('in');inp.focus();
+ const up=()=>{st[s.k]=s.at?clean(inp.value):inp.value.trim();document.getElementById('next').disabled=s.req&&!st[s.k];if(s.at)preview(s.net,st[s.k]);};
+ inp.oninput=up;inp.onkeydown=e=>{if(e.key==='Enter'&&!document.getElementById('next').disabled)go(1)};
+ if(s.at&&st[s.k])preview(s.net,st[s.k]);
+ hook();
+}
+function nav(dis){return `<div class="row">${step?'<button id="back">Back</button>':''}<button class="go" id="next" ${dis?'disabled':''}>${'Next'}</button></div>`}
+function hook(){const b=document.getElementById('back');if(b)b.onclick=()=>go(-1);document.getElementById('next').onclick=()=>go(1)}
+function go(d){step+=d;render()}
+let pvT;
+function preview(net,h){
+ clearTimeout(pvT);const box=document.getElementById('pv');
+ if(!h){box.innerHTML='';return}
+ pvT=setTimeout(()=>{
+  const url=prof[net](h);
+  box.innerHTML=`<a class="opt sel" href="${esc(url)}" target="_blank" rel="noopener"><img alt="" src="https://unavatar.io/${net}/${encodeURIComponent(h)}?fallback=false" onerror="this.outerHTML='<span class=av>@</span>'"><div><strong>@${esc(h)}</strong><small>${esc(url)}</small></div><span class="muted">Check ↗</span></a><p class="muted">If the photo or page is wrong, fix the @ above.</p>`;
+ },350);
+}
+let plT,plRes=[];
+function place(v){
+ const has=st.p||st.q;
+ v.innerHTML=`<h1>Which place?</h1><p class="hint">Search the business, then pick the right one. This becomes the Google review button.</p>
+  <input id="in" placeholder="Business name + city" value="${esc(st.s)}" autocomplete="off">
+  <div class="list" id="res"></div>${nav(false)}
+  <details><summary>Google Places key (exact review links)</summary><p>Without a key, places come from OpenStreetMap and the button opens the place in Google Maps. With a Google Places API key, the button opens the review box directly.</p><input id="gk" placeholder="AIza..." value="${esc(K())}"></details>`;
+ const inp=document.getElementById('in');inp.focus();
+ document.getElementById('gk').onchange=e=>{try{localStorage.setItem('gkey',e.target.value.trim())}catch(_){};search(inp.value)};
+ inp.oninput=()=>{clearTimeout(plT);plT=setTimeout(()=>search(inp.value),350)};
+ if(inp.value)search(inp.value);
+ hook();
+}
+async function search(q){
+ const box=document.getElementById('res');q=q.trim();
+ if(q.length<2){box.innerHTML='';return}
+ box.innerHTML='<p class="muted">Searching...</p>';
+ try{
+  const key=K();
+  if(key){
+   const r=await fetch('https://places.googleapis.com/v1/places:searchText',{method:'POST',headers:{'Content-Type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':'places.id,places.displayName,places.formattedAddress'},body:JSON.stringify({textQuery:q,maxResultCount:6})});
+   const j=await r.json();if(j.error)throw new Error(j.error.message);
+   plRes=(j.places||[]).map(p=>({name:p.displayName.text,addr:p.formattedAddress,p:p.id}));
+  }else{
+   const r=await fetch('https://photon.komoot.io/api/?limit=6&lat=31.8&lon=34.9&q='+encodeURIComponent(q));
+   const j=await r.json();
+   plRes=j.features.map(f=>{const o=f.properties;const addr=[o.street&&(o.street+(o.housenumber?' '+o.housenumber:'')),o.city||o.town||o.village,o.country].filter(Boolean).join(', ');return{name:o.name||o.street||q,addr,q:[o.name,o.street&&(o.street+(o.housenumber?' '+o.housenumber:'')),o.city||o.town].filter(Boolean).join(', ')}});
+  }
+  if(!plRes.length){box.innerHTML='<p class="muted">No results. Try adding the city.</p>';return}
+  box.innerHTML=plRes.map((r,i)=>`<button class="opt ${(r.p&&r.p===st.p)||(r.q&&r.q===st.q)?'sel':''}" data-i="${i}"><span class="av">◉</span><div><strong>${esc(r.name)}</strong><small>${esc(r.addr)}</small></div></button>`).join('');
+  box.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{const r=plRes[b.dataset.i];st.p=r.p||'';st.q=r.q||'';st.s=r.name;box.querySelectorAll('.opt').forEach(x=>x.classList.toggle('sel',x===b))});
+ }catch(e){box.innerHTML='<p class="muted">Search failed: '+esc(e.message)+'</p>'}
+}
+const REPO='cohenom/tap',BR='main';
+const TK=()=>{try{return localStorage.getItem('ghtok')||''}catch(e){return''}};
+const slugOf=n=>(n.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'')||'page')+'_links';
+const b64=t=>{const b=new TextEncoder().encode(t);let s='';b.forEach(c=>s+=String.fromCharCode(c));return btoa(s)};
+async function gh(path,opt={}){const r=await fetch('https://api.github.com/repos/'+REPO+path,{...opt,headers:{Authorization:'Bearer '+TK(),Accept:'application/vnd.github+json',...(opt.headers||{})}});if(r.status===404)return null;const j=await r.json();if(!r.ok)throw new Error(j.message||r.status);return j}
+function done(v){
+ const tokUrl='https://github.com/settings/personal-access-tokens/new?name=links-maker&description=Link+page+maker&target_name=cohenom&expires_in=none&contents=write';
+ v.innerHTML=`<h1>Pick the link</h1><p class="hint">Letters, numbers and _ only.</p>
+  <div class="pre" style="--x:0"><input id="sl" value="${esc(st.slug||slugOf(st.n))}" autocomplete="off" style="padding-left:18px"></div>
+  <p class="muted" id="pre"></p>
+  <div id="tk" ${TK()?'hidden':''}><p class="hint" style="margin-top:22px">One-time setup on this browser: <a href="${tokUrl}" target="_blank" rel="noopener" style="color:var(--accent)">create a GitHub token</a> (repository: tap, Contents: Read and write), then paste it here.</p><input id="tok" placeholder="github_pat_..." autocomplete="off"></div>
+  <p class="muted" id="msg"></p>
+  <div class="row"><button id="back">Back</button><button class="go" id="mk">Create page</button></div>`;
+ const sl=document.getElementById('sl'),pre=document.getElementById('pre'),msg=document.getElementById('msg');
+ const upd=()=>{sl.value=sl.value.toLowerCase().replace(/[^a-z0-9_]/g,'_');st.slug=sl.value;pre.textContent='https://cohenom.github.io/tap/'+sl.value+'/'};
+ sl.oninput=upd;upd();
+ document.getElementById('back').onclick=()=>go(-1);
+ document.getElementById('mk').onclick=async e=>{
+  const t=document.getElementById('tok');if(t&&t.value.trim())try{localStorage.setItem('ghtok',t.value.trim())}catch(_){}
+  if(!TK()){msg.textContent='Paste the GitHub token first.';return}
+  const slug=st.slug;if(!/^[a-z0-9_]{2,}$/.test(slug)){msg.textContent='Link name too short.';return}
+  e.target.disabled=true;
+  try{
+   msg.textContent='Saving...';
+   const tpl=await (await fetch(new URL('../template.html',location.href),{cache:'no-store'})).text();
+   const d={};for(const k of 'nspqwift')if(st[k])d[k]=st[k];if(d.s===d.n)delete d.s;
+   const html=tpl.replace('<scr'+'ipt>','<scr'+'ipt>window.D='+JSON.stringify(d).replace(/</g,'\\u003c')+';\n');
+   const path='/contents/'+slug+'/index.html';
+   const cur=await gh(path+'?ref='+BR);
+   if(cur&&!confirm('/'+slug+'/ already exists. Replace it?')){e.target.disabled=false;msg.textContent='';return}
+   await gh(path,{method:'PUT',body:JSON.stringify({message:'Add '+slug+' page',content:b64(html),branch:BR,...(cur?{sha:cur.sha}:{})})});
+   const url='https://cohenom.github.io/tap/'+slug+'/';
+   msg.textContent='Publishing (about a minute)...';
+   for(let i=0;i<60;i++){await new Promise(r=>setTimeout(r,5000));try{const r=await fetch(url+'?x='+Date.now(),{cache:'no-store'});if(r.ok&&(await r.text()).includes(JSON.stringify(d).slice(0,40).replace(/</g,'\\u003c')))break}catch(_){}}
+   ready(v,url);
+  }catch(err){msg.textContent='Failed: '+err.message+(/credential|401|Bad/.test(err.message)?' (token wrong — paste a new one)':'');if(/credential|401/.test(err.message))try{localStorage.removeItem('ghtok')}catch(_){};document.getElementById('tk').hidden=false;e.target.disabled=false}
+ };
+}
+function ready(v,u){
+ v.innerHTML=`<h1>Your page is live</h1><p class="hint">Write this link onto the NFC card.</p>
+  <div class="out">${esc(u)}</div>
+  <div class="row"><button id="cp">Copy</button><button class="go" id="op">Open page</button></div>
+  <div class="row"><button id="again" style="flex:1">Make another</button></div>`;
+ document.getElementById('op').onclick=()=>open(u,'_blank');
+ document.getElementById('cp').onclick=e=>{navigator.clipboard.writeText(u);e.target.textContent='Copied'};
+ document.getElementById('again').onclick=()=>{for(const k in st)st[k]='';step=0;render()};
+}
+async function gate(){
+ const v=document.getElementById('view');
+ if(TK()){try{const r=await gh('');if(r&&r.permissions&&r.permissions.push)return render()}catch(e){}try{localStorage.removeItem('ghtok')}catch(_){}}
+ document.getElementById('bar').innerHTML='';
+ const tokUrl='https://github.com/settings/personal-access-tokens/new?name=links-maker&description=Link+page+maker&target_name=cohenom&expires_in=none&contents=write';
+ v.innerHTML=`<h1>Private</h1><p class="hint">Paste the access token to use the maker. (<a href="${tokUrl}" target="_blank" rel="noopener" style="color:var(--accent)">make one</a>: repository tap, Contents read and write)</p><input id="tok" type="password" autocomplete="off"><p class="muted" id="msg"></p><div class="row"><button class="go" id="ok">Unlock</button></div>`;
+ const t=document.getElementById('tok');t.focus();
+ const ok=async()=>{try{localStorage.setItem('ghtok',t.value.trim())}catch(_){}
+  try{const r=await gh('');if(r&&r.permissions&&r.permissions.push)return render()}catch(e){}
+  try{localStorage.removeItem('ghtok')}catch(_){};document.getElementById('msg').textContent='That token does not have access.'};
+ document.getElementById('ok').onclick=ok;t.onkeydown=e=>{if(e.key==='Enter')ok()};
+}
+gate();
+</script>
+</body>
+</html>
